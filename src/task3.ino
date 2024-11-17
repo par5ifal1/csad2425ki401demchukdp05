@@ -28,10 +28,19 @@ void saveConfig(const GameConfig &config) {
   Serial.println(output);
 }
 
+bool loadStringConfig(JsonDocument& doc, const char* key, String& value) {
+  if (doc.containsKey(key) && doc[key].is<String>()) {
+    value = doc[key].as<String>();
+    return true;
+  }
+  Serial.println(String(key) + " not found or invalid");
+  return false;
+}
+
 void loadConfig(String jsonConfig) {
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, jsonConfig);
-  
+
   if (error) {
     Serial.println("Failed to load configuration");
     return;
@@ -44,22 +53,12 @@ void loadConfig(String jsonConfig) {
     return;
   }
 
-  if (doc.containsKey("player1Symbol") && doc["player1Symbol"].is<String>()) {
-    player1Symbol = doc["player1Symbol"].as<String>(); 
-  } else {
-    Serial.println("player1Symbol not found or invalid");
-    return;
-  }
-
-  if (doc.containsKey("player2Symbol") && doc["player2Symbol"].is<String>()) {
-    player2Symbol = doc["player2Symbol"].as<String>();
-  } else {
-    Serial.println("player2Symbol not found or invalid");
-    return;
-  }
+  if (!loadStringConfig(doc, "player1Symbol", player1Symbol)) return;
+  if (!loadStringConfig(doc, "player2Symbol", player2Symbol)) return;
 
   Serial.println("Configuration loaded!");
 }
+
 
 
 void initializeBoard() {
@@ -151,92 +150,117 @@ void aiMove(char aiSymbol) {
 }
 
 bool blockOpponentMove(char opponent) {
+  int row[3] = {0, 1, 2};
+  int col[3] = {0, 1, 2};
+
+  // Check rows and columns
   for (int i = 0; i < 3; i++) {
-    // Горизонтальні та вертикальні лінії
-    if (canBlock(i, 0, i, 1, i, 2, opponent)) {
+    int rowCoords[3][2] = {{row[i], 0}, {row[i], 1}, {row[i], 2}};
+    int colCoords[3][2] = {{0, col[i]}, {1, col[i]}, {2, col[i]}};
+
+    if (canBlock(rowCoords[0], rowCoords[1], rowCoords[2], opponent)) {
       return true;
     }
-    if (canBlock(0, i, 1, i, 2, i, opponent)) {
+    if (canBlock(colCoords[0], colCoords[1], colCoords[2], opponent)) {
       return true;
     }
   }
-  
-  if (canBlock(0, 0, 1, 1, 2, 2, opponent)) {
+
+  // Check diagonals
+  int diag1[3][2] = {{0, 0}, {1, 1}, {2, 2}};
+  int diag2[3][2] = {{0, 2}, {1, 1}, {2, 0}};
+
+  if (canBlock(diag1[0], diag1[1], diag1[2], opponent)) {
     return true;
   }
-  if (canBlock(0, 2, 1, 1, 2, 0, opponent)) {
+  if (canBlock(diag2[0], diag2[1], diag2[2], opponent)) {
     return true;
   }
 
   return false;
 }
 
-bool canBlock(int x1, int y1, int x2, int y2, int x3, int y3, char opponent) {
-  if (board[x1][y1] == opponent && board[x2][y2] == opponent && board[x3][y3] == ' ') {
-    board[x3][y3] = 'O'; 
-    Serial.println("AI blocked opponent's winning move at: " + String(x3 + 1) + " " + String(y3 + 1));
+bool isWinningMove(int coords1[2], int coords2[2], int coords3[2], char opponent) {
+  return (board[coords1[0]][coords1[1]] == opponent && board[coords2[0]][coords2[1]] == opponent && board[coords3[0]][coords3[1]] == ' ') ||
+         (board[coords1[0]][coords1[1]] == opponent && board[coords2[0]][coords2[1]] == ' ' && board[coords3[0]][coords3[1]] == opponent) ||
+         (board[coords1[0]][coords1[1]] == ' ' && board[coords2[0]][coords2[1]] == opponent && board[coords3[0]][coords3[1]] == opponent);
+}
+
+void placeMove(int coords[2], char symbol) {
+  board[coords[0]][coords[1]] = symbol;
+  Serial.println("AI blocked opponent's winning move at: " + String(coords[0] + 1) + " " + String(coords[1] + 1));
+}
+
+bool canBlock(int coords1[2], int coords2[2], int coords3[2], char opponent) {
+  if (isWinningMove(coords1, coords2, coords3, opponent)) {
+    if (board[coords1[0]][coords1[1]] == ' ') {
+      placeMove(coords1, 'O');
+    } else if (board[coords2[0]][coords2[1]] == ' ') {
+      placeMove(coords2, 'O');
+    } else {
+      placeMove(coords3, 'O');
+    }
     return true;
   }
-  if (board[x1][y1] == opponent && board[x2][y2] == ' ' && board[x3][y3] == opponent) {
-    board[x2][y2] = 'O'; 
-    Serial.println("AI blocked opponent's winning move at: " + String(x2 + 1) + " " + String(y2 + 1));
-    return true;
-  }
-  if (board[x1][y1] == ' ' && board[x2][y2] == opponent && board[x3][y3] == opponent) {
-    board[x1][y1] = 'O'; 
-    Serial.println("AI blocked opponent's winning move at: " + String(x1 + 1) + " " + String(y1 + 1));
-    return true;
-  }
-  
+
   return false;
+}
+
+void handlePlayerMove(int row, int col) {
+  board[row][col] = (currentPlayer == "X") ? 'X' : 'O';
+  printBoard();
+
+  if (checkWin('X')) {
+    Serial.println("Player X wins!");
+    gameActive = false;
+  } else if (checkWin('O')) {
+    Serial.println("Player O wins!");
+    gameActive = false;
+  } else if (isBoardFull()) {
+    Serial.println("It's a draw!");
+    gameActive = false;
+  }
+}
+
+void handleAIMove() {
+  if (gameMode == 2) {
+    aiMove(player1Symbol[0]);
+    if (checkWin(player1Symbol[0])) {
+      Serial.println("Player 1 (AI) wins!");
+      gameActive = false;
+      return;
+    }
+    aiMove(player2Symbol[0]);
+    if (checkWin(player2Symbol[0])) {
+      Serial.println("Player 2 (AI) wins!");
+      gameActive = false;
+      return;
+    }
+  }
+}
+
+void switchPlayer() {
+  currentPlayer = (currentPlayer == "X") ? 'O' : 'X';
+}
+
+bool isValidMove(int row, int col) {
+  return (row >= 0 && row < 3 && col >= 0 && col < 3 && board[row][col] == ' ');
 }
 
 void processMove(String input) {
   int row = input[0] - '1';
   int col = input[2] - '1';
 
-  if (row >= 0 && row < 3 && col >= 0 && col < 3 && board[row][col] == ' ') {
-    if (gameMode == 1) { 
-      board[row][col] = (currentPlayer == "X") ? 'X' : 'O';
-    } else { 
-      board[row][col] = 'X'; 
-    }
-    printBoard();
+  if (isValidMove(row, col)) {
+    handlePlayerMove(row, col);
+    
+    if (!gameActive) return;
 
-    if (checkWin('X')) {
-      Serial.println("Player X wins!");
-      gameActive = false;
-      return;
-    }
+    handleAIMove();
 
-    if (checkWin('O')) {
-      Serial.println("Player O wins!");
-      gameActive = false;
-      return;
+    if (gameActive) {
+      switchPlayer();
     }
-
-    if (isBoardFull()) {
-      Serial.println("It's a draw!");
-      gameActive = false;
-      return;
-    }
-
-    if (gameMode == 2) {
-      aiMove(player1Symbol[0]);
-      if (checkWin(player1Symbol[0])) {
-        Serial.println("Player 1 (AI) wins!");
-        gameActive = false;
-        return;
-      }
-      aiMove(player2Symbol[0]);
-      if (checkWin(player2Symbol[0])) {
-        Serial.println("Player 2 (AI) wins!");
-        gameActive = false;
-        return;
-      }
-    }
-
-    currentPlayer = (currentPlayer == "X") ? 'O' : 'X';
   } else {
     Serial.println("Invalid move, try again.");
   }
@@ -247,122 +271,129 @@ void setup() {
   Serial.begin(9600);
 }
 
+void initializeGame() {
+  initializeBoard();
+  gameActive = true;
+
+  if (gameMode == 1) {
+    Serial.println("Player 1, choose your symbol: X or O");
+    currentPlayer = (random(2) == 0) ? 'X' : 'O';
+    player1Symbol = currentPlayer;
+    player2Symbol = (currentPlayer == "X") ? 'O' : 'X';
+    Serial.println("Player 1 is " + String(player1Symbol));
+    Serial.println("Player 2 is " + String(player2Symbol));
+  } else {
+    currentPlayer = 'X';
+  }
+
+  Serial.println("New game started! " + String(currentPlayer) + " goes first.");
+  printBoard();
+}
+
+bool checkAndPrintWinner(char symbol) {
+  if (checkWin(symbol)) {
+    Serial.println(String(symbol) + " wins!");
+    gameActive = false;
+    return true;
+  }
+  return false;
+}
+
+bool checkAndPrintDraw() {
+  if (isBoardFull()) {
+    Serial.println("It's a draw!");
+    gameActive = false;
+    return true;
+  }
+  return false;
+}
+
+void processHumanVsAI() {
+  while (gameActive) {
+    if (currentPlayer == "X") {
+      Serial.println("Your move, player (enter row and column):");
+      while (Serial.available() == 0) {}
+      String userMove = Serial.readStringUntil('\n');
+      processMove(userMove);
+      printBoard();
+
+      if (checkAndPrintWinner('X') || checkAndPrintDraw()) {
+        break;
+      }
+
+      currentPlayer = 'O';
+    } else {
+      aiMove('O');
+      printBoard();
+      if (checkAndPrintWinner('O') || checkAndPrintDraw()) {
+        break;
+      }
+
+      currentPlayer = 'X';
+    }
+  }
+}
+
+void processAIvsAI() {
+  while (gameActive) {
+    aiMove('X');
+    printBoard();
+    if (checkAndPrintWinner('X') || checkAndPrintDraw()) {
+      break;
+    }
+
+    aiMove('O');
+    printBoard();
+    if (checkAndPrintWinner('O') || checkAndPrintDraw()) {
+      break;
+    }
+  }
+}
+
+void processReceivedMessage(String receivedMessage) {
+  if (receivedMessage == "new") {
+    initializeGame();
+    
+    if (gameMode == 0) {
+      processHumanVsAI();
+    } else if (gameMode == 2) {
+      processAIvsAI();
+    }
+  } else if (receivedMessage.startsWith("save")) {
+    GameConfig config = { gameMode, player1Symbol, player2Symbol, currentPlayer };
+    saveConfig(config);
+  } else if (receivedMessage.startsWith("{")) {
+    if (receivedMessage.length() > 0) {
+        loadConfig(receivedMessage);
+    } else {
+        Serial.println("No message received");
+    }
+  } else if (receivedMessage.startsWith("modes")) {
+    handleGameMode(receivedMessage);
+  } else if (gameActive) {
+    processMove(receivedMessage);
+  } else {
+    Serial.println("No active game. Type 'new' to start.");
+  }
+}
+
+void handleGameMode(String receivedMessage) {
+  if (receivedMessage == "modes 0") {
+    gameMode = 0;
+    Serial.println("Game mode: Man vs AI");
+  } else if (receivedMessage == "modes 1") {
+    gameMode = 1;
+    Serial.println("Game mode: Man vs Man");
+  } else if (receivedMessage == "modes 2") {
+    gameMode = 2;
+    Serial.println("Game mode: AI vs AI");
+  }
+}
+
 void loop() {
   if (Serial.available() > 0) {
     String receivedMessage = Serial.readStringUntil('\n');
-    receivedMessage.trim(); 
-
-    if (receivedMessage == "new") {
-      initializeBoard();
-      gameActive = true;
-      
-      if (gameMode == 1) {
-        Serial.println("Player 1, choose your symbol: X or O");
-        currentPlayer = (random(2) == 0) ? 'X' : 'O'; 
-        player1Symbol = currentPlayer;
-        player2Symbol = (currentPlayer == "X") ? 'O' : 'X';
-        Serial.println("Player 1 is " + String(player1Symbol));
-        Serial.println("Player 2 is " + String(player2Symbol));
-      } else {
-        currentPlayer = 'X'; 
-      }
-
-      Serial.println("New game started! " + String(currentPlayer) + " goes first.");
-      printBoard();
-
-      if (gameMode == 0) {
-        while (gameActive) {
-          if (currentPlayer == "X") {
-            Serial.println("Your move, player (enter row and column):");
-            while (Serial.available() == 0) {
-            }
-            String userMove = Serial.readStringUntil('\n');
-            processMove(userMove); 
-            printBoard();
-            
-            if (checkWin('X')) {
-              Serial.println("Player X wins!");
-              gameActive = false;
-              break;
-            }
-            if (isBoardFull()) {
-              Serial.println("It's a draw!");
-              gameActive = false;
-              break;
-            }
-
-            currentPlayer = 'O'; 
-          } else {
-            aiMove('O');
-            printBoard();
-            if (checkWin('O')) {
-              Serial.println("AI O wins!");
-              gameActive = false;
-              break;
-            }
-            if (isBoardFull()) {
-              Serial.println("It's a draw!");
-              gameActive = false;
-              break;
-            }
-
-            currentPlayer = 'X'; 
-          }
-        }
-      }
-      else if (gameMode == 2) {
-        while (gameActive) {
-          aiMove('X');  
-          printBoard();
-          if (checkWin('X')) {
-            Serial.println("AI X wins!");
-            gameActive = false;
-            break; 
-          }
-          if (isBoardFull()) {
-            Serial.println("It's a draw!");
-            gameActive = false;
-            break; 
-          }
-
-          aiMove('O');  
-          printBoard();
-          if (checkWin('O')) {
-            Serial.println("AI O wins!");
-            gameActive = false;
-            break; 
-          }
-          if (isBoardFull()) {
-            Serial.println("It's a draw!");
-            gameActive = false;
-            break; 
-          }
-        }
-      }
-    } else if (receivedMessage.startsWith("save")) {
-      GameConfig config = { gameMode, player1Symbol, player2Symbol, currentPlayer };
-      saveConfig(config);
-    } else if (receivedMessage.startsWith("{")) {
-      if (receivedMessage.length() > 0) {
-          loadConfig(receivedMessage);
-      } else {
-          Serial.println("No message received");
-      }
-    } else if (receivedMessage.startsWith("modes")) {
-      if (receivedMessage == "modes 0") {
-        gameMode = 0;
-        Serial.println("Game mode: Man vs AI");
-      } else if (receivedMessage == "modes 1") {
-        gameMode = 1;
-        Serial.println("Game mode: Man vs Man");
-      } else if (receivedMessage == "modes 2") {
-        gameMode = 2;
-        Serial.println("Game mode: AI vs AI");
-      }
-    } else if (gameActive) {
-      processMove(receivedMessage);
-    } else {
-      Serial.println("No active game. Type 'new' to start.");
-    }
+    receivedMessage.trim();
+    processReceivedMessage(receivedMessage);
   }
 }
