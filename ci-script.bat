@@ -1,6 +1,6 @@
 @echo off
 
-if "%PORT%"=="" (
+if "%PORT%"=="COM9" (
     if "%~1"=="" (
         echo No port specified. Exiting.
         exit /b 1
@@ -21,6 +21,13 @@ if errorlevel 1 (
 
 echo Installing Python dependencies...
 pip install -r python_project\requirements.txt
+
+echo Installing PlatformIO libraries...
+platformio lib install "ArduinoJson"
+if errorlevel 1 (
+    echo Failed to install ArduinoJson library. Exiting.
+    exit /b 1
+)
 
 echo Building firmware...
 platformio run
