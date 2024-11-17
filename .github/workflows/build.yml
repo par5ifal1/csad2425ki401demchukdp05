@@ -22,7 +22,7 @@ jobs:
     - name: Run CI Script
       env:
         PORT: COM3
-      run: ./ci/ci-script.bat
+      run: ./ci-script.bat
 
     - name: Upload binaries and test reports
       uses: actions/upload-artifact@v3
