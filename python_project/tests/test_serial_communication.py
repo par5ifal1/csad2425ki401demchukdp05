@@ -12,20 +12,17 @@ def test_send_message():
     send_message("Hello", mock_serial)
     mock_serial.write.assert_called_with(b"Hello\n")
 
-
 def test_receive_message():
     mock_serial = MagicMock(spec=serial.Serial)
     mock_serial.readline.return_value = b"Test Message\n"
     result = receive_message(mock_serial)
     assert result == "Test Message"
 
-
 def test_receive_empty_message():
     mock_serial = MagicMock(spec=serial.Serial)
     mock_serial.readline.return_value = b"\n"
     result = receive_message(mock_serial)
     assert result == ""
-
 
 @patch('builtins.input', return_value='COM3')
 def test_serial_port(mock_input):
