@@ -10,6 +10,9 @@ int gameMode = 0;
 
 /**
  * @brief Structure to hold the game configuration.
+ * 
+ * This structure contains the current game mode, player symbols,
+ * and the symbol of the current player.
  */
 struct GameConfig {
   int gameMode;           ///< The game mode (e.g., single-player or multiplayer)
@@ -20,6 +23,9 @@ struct GameConfig {
 
 /**
  * @brief Saves the current game configuration to Serial as a JSON string.
+ * 
+ * This function serializes the current configuration of the game into a 
+ * JSON format and prints it to the Serial monitor for later use.
  * 
  * @param config The GameConfig struct holding the current configuration.
  */
@@ -36,14 +42,37 @@ void saveConfig(const GameConfig &config) {
 }
 
 /**
+ * @brief Loads a string configuration from a JSON document.
+ * 
+ * This helper function attempts to load the configuration values 
+ * for a given key from the provided JSON document.
+ * 
+ * @param doc The JSON document containing the configuration.
+ * @param key The key to look for in the document.
+ * @param value The value of the key will be stored in this parameter if found.
+ * @return true if the key exists and is a string, false otherwise.
+ */
+bool loadStringConfig(JsonDocument& doc, const char* key, String& value) {
+  if (doc.containsKey(key) && doc[key].is<String>()) {
+    value = doc[key].as<String>();
+    return true;
+  }
+  Serial.println(String(key) + " not found or invalid");
+  return false;
+}
+
+/**
  * @brief Loads the game configuration from a JSON string.
  * 
- * @param jsonConfig The JSON string representing the saved game configuration.
+ * This function deserializes a JSON string into a configuration object
+ * and applies the values to the current game settings.
+ * 
+ * @param jsonConfig The JSON string representing the game configuration.
  */
 void loadConfig(String jsonConfig) {
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, jsonConfig);
-  
+
   if (error) {
     Serial.println("Failed to load configuration");
     return;
@@ -75,6 +104,9 @@ void loadConfig(String jsonConfig) {
 
 /**
  * @brief Initializes the game board with empty spaces.
+ * 
+ * This function sets all the cells of the 3x3 board to empty (' '),
+ * preparing the board for the start of a new game.
  */
 void initializeBoard() {
   for (int i = 0; i < 3; i++) {
@@ -86,6 +118,9 @@ void initializeBoard() {
 
 /**
  * @brief Prints the current state of the game board.
+ * 
+ * This function displays the current game board in a readable format, 
+ * showing the position of 'X' and 'O' symbols and empty spaces as '.'.
  */
 void printBoard() {
   String boardState = "Board state:\n";
@@ -109,6 +144,9 @@ void printBoard() {
 /**
  * @brief Checks if a given player has won the game.
  * 
+ * This function checks all rows, columns, and diagonals for a win condition
+ * by comparing the board positions with the given player's symbol.
+ * 
  * @param player The symbol of the player ('X' or 'O').
  * @return true if the player has won, false otherwise.
  */
@@ -131,6 +169,9 @@ bool checkWin(char player) {
 /**
  * @brief Checks if the game board is full (no empty spaces).
  * 
+ * This function checks all cells of the board to determine if there are any
+ * remaining empty spaces. If all cells are filled, it returns true, otherwise false.
+ * 
  * @return true if the board is full, false otherwise.
  */
 bool isBoardFull() {
@@ -148,6 +189,8 @@ bool isBoardFull() {
  * @brief AI makes a move on the game board.
  * 
  * The AI either blocks the opponent's winning move or plays randomly.
+ * The AI will attempt to block the opponent's move if it can, otherwise it will 
+ * choose a random empty space.
  * 
  * @param aiSymbol The symbol representing the AI ('X' or 'O').
  */
@@ -184,28 +227,40 @@ void aiMove(char aiSymbol) {
     }
   }
 }
-
 /**
- * @brief Attempts to block the opponent from making a winning move.
+ * @brief Blocks the opponent's winning move.
+ * 
+ * The AI checks the rows, columns, and diagonals to find an opportunity to block the opponent from winning.
+ * If a winning move is detected for the opponent, the AI places its symbol to block the move.
  * 
  * @param opponent The symbol of the opponent ('X' or 'O').
- * @return true if the opponent's winning move is blocked, false otherwise.
+ * @return true if the AI blocked an opponent's winning move, false otherwise.
  */
 bool blockOpponentMove(char opponent) {
+  int row[3] = {0, 1, 2};
+  int col[3] = {0, 1, 2};
+
+  // Check rows and columns
   for (int i = 0; i < 3; i++) {
-    // Horizontal and vertical lines
-    if (canBlock(i, 0, i, 1, i, 2, opponent)) {
+    int rowCoords[3][2] = {{row[i], 0}, {row[i], 1}, {row[i], 2}};
+    int colCoords[3][2] = {{0, col[i]}, {1, col[i]}, {2, col[i]}};
+
+    if (canBlock(rowCoords[0], rowCoords[1], rowCoords[2], opponent)) {
       return true;
     }
-    if (canBlock(0, i, 1, i, 2, i, opponent)) {
+    if (canBlock(colCoords[0], colCoords[1], colCoords[2], opponent)) {
       return true;
     }
   }
-  
-  if (canBlock(0, 0, 1, 1, 2, 2, opponent)) {
+
+  // Check diagonals
+  int diag1[3][2] = {{0, 0}, {1, 1}, {2, 2}};
+  int diag2[3][2] = {{0, 2}, {1, 1}, {2, 0}};
+
+  if (canBlock(diag1[0], diag1[1], diag1[2], opponent)) {
     return true;
   }
-  if (canBlock(0, 2, 1, 1, 2, 0, opponent)) {
+  if (canBlock(diag2[0], diag2[1], diag2[2], opponent)) {
     return true;
   }
 
@@ -213,106 +268,162 @@ bool blockOpponentMove(char opponent) {
 }
 
 /**
- * @brief Checks if the AI can block the opponent's winning move.
+ * @brief Checks if a set of coordinates forms a winning move for the opponent.
  * 
- * This function checks all three possible positions in a row, column, or diagonal
- * where the opponent has two symbols and the third position is empty. If such a 
- * position exists, the AI will block the opponent's winning move by placing its 
- * symbol ('O') in that position.
+ * This function checks if the opponent has two of their symbols in a row, column, or diagonal
+ * and can place their symbol in the remaining empty space to win.
  * 
- * @param x1 The x-coordinate of the first position in the line.
- * @param y1 The y-coordinate of the first position in the line.
- * @param x2 The x-coordinate of the second position in the line.
- * @param y2 The y-coordinate of the second position in the line.
- * @param x3 The x-coordinate of the third position in the line.
- * @param y3 The y-coordinate of the third position in the line.
+ * @param coords1 The first coordinate in the set.
+ * @param coords2 The second coordinate in the set.
+ * @param coords3 The third coordinate in the set.
  * @param opponent The symbol of the opponent ('X' or 'O').
- * @return true if the move was blocked; false otherwise.
+ * @return true if the opponent can win by placing a symbol at one of the coordinates, false otherwise.
  */
-bool canBlock(int x1, int y1, int x2, int y2, int x3, int y3, char opponent) {
-  if (board[x1][y1] == opponent && board[x2][y2] == opponent && board[x3][y3] == ' ') {
-    board[x3][y3] = 'O'; 
-    Serial.println("AI blocked opponent's winning move at: " + String(x3 + 1) + " " + String(y3 + 1));
+bool isWinningMove(int coords1[2], int coords2[2], int coords3[2], char opponent) {
+  return (board[coords1[0]][coords1[1]] == opponent && board[coords2[0]][coords2[1]] == opponent && board[coords3[0]][coords3[1]] == ' ') ||
+         (board[coords1[0]][coords1[1]] == opponent && board[coords2[0]][coords2[1]] == ' ' && board[coords3[0]][coords3[1]] == opponent) ||
+         (board[coords1[0]][coords1[1]] == ' ' && board[coords2[0]][coords2[1]] == opponent && board[coords3[0]][coords3[1]] == opponent);
+}
+
+/**
+ * @brief Places a move on the game board to block the opponent.
+ * 
+ * This function places the AI's symbol on the game board to block the opponent's winning move.
+ * It also prints the coordinates where the AI blocked the opponent.
+ * 
+ * @param coords The coordinates where the AI will place its symbol.
+ * @param symbol The symbol of the AI ('X' or 'O').
+ */
+void placeMove(int coords[2], char symbol) {
+  board[coords[0]][coords[1]] = symbol;
+  Serial.println("AI blocked opponent's winning move at: " + String(coords[0] + 1) + " " + String(coords[1] + 1));
+}
+
+/**
+ * @brief Checks if a move can block an opponent's winning move.
+ * 
+ * This function checks if the opponent is one move away from winning in the specified row, column, or diagonal.
+ * If a blocking move is possible, it places the AI's symbol in the empty spot to block the opponent.
+ * 
+ * @param coords1 The first coordinate in the set.
+ * @param coords2 The second coordinate in the set.
+ * @param coords3 The third coordinate in the set.
+ * @param opponent The symbol of the opponent ('X' or 'O').
+ * @return true if the move can block the opponent's winning move, false otherwise.
+ */
+bool canBlock(int coords1[2], int coords2[2], int coords3[2], char opponent) {
+  if (isWinningMove(coords1, coords2, coords3, opponent)) {
+    if (board[coords1[0]][coords1[1]] == ' ') {
+      placeMove(coords1, 'O');
+    } else if (board[coords2[0]][coords2[1]] == ' ') {
+      placeMove(coords2, 'O');
+    } else {
+      placeMove(coords3, 'O');
+    }
     return true;
   }
-  if (board[x1][y1] == opponent && board[x2][y2] == ' ' && board[x3][y3] == opponent) {
-    board[x2][y2] = 'O'; 
-    Serial.println("AI blocked opponent's winning move at: " + String(x2 + 1) + " " + String(y2 + 1));
-    return true;
-  }
-  if (board[x1][y1] == ' ' && board[x2][y2] == opponent && board[x3][y3] == opponent) {
-    board[x1][y1] = 'O'; 
-    Serial.println("AI blocked opponent's winning move at: " + String(x1 + 1) + " " + String(y1 + 1));
-    return true;
-  }
-  
+
   return false;
 }
 
 /**
- * @brief Processes a move made by the player or AI.
+ * @brief Handles the player's move on the game board.
  * 
- * This function processes a move by either a player (in player vs player mode) or AI 
- * (in player vs AI mode). It updates the board, checks for a win, a draw, or proceeds
- * to the next turn.
+ * This function updates the board with the current player's symbol, prints the board, 
+ * and checks for a win or draw condition.
  * 
- * In player vs player mode, the current player can choose any empty spot on the board.
- * In player vs AI mode, the AI makes a move after the player.
+ * @param row The row where the player is placing their symbol.
+ * @param col The column where the player is placing their symbol.
+ */
+void handlePlayerMove(int row, int col) {
+  board[row][col] = (currentPlayer == "X") ? 'X' : 'O';
+  printBoard();
+
+  if (checkWin('X')) {
+    Serial.println("Player X wins!");
+    gameActive = false;
+  } else if (checkWin('O')) {
+    Serial.println("Player O wins!");
+    gameActive = false;
+  } else if (isBoardFull()) {
+    Serial.println("It's a draw!");
+    gameActive = false;
+  }
+}
+
+/**
+ * @brief Handles the AI's move in the game.
  * 
- * @param input A string representing the move, formatted as "row,col", e.g., "1,1" for the top-left position.
+ * This function controls the AI's move, where it can either block the opponent's move or play randomly.
+ * After the AI plays, it checks for a win condition.
+ */
+void handleAIMove() {
+  if (gameMode == 2) {
+    aiMove(player1Symbol[0]);
+    if (checkWin(player1Symbol[0])) {
+      Serial.println("Player 1 (AI) wins!");
+      gameActive = false;
+      return;
+    }
+    aiMove(player2Symbol[0]);
+    if (checkWin(player2Symbol[0])) {
+      Serial.println("Player 2 (AI) wins!");
+      gameActive = false;
+      return;
+    }
+  }
+}
+
+/**
+ * @brief Switches the turn to the next player.
  * 
- * @note The game will stop if there is a winner or the board is full (draw).
+ * This function switches the current player between "X" and "O".
+ */
+void switchPlayer() {
+  currentPlayer = (currentPlayer == "X") ? 'O' : 'X';
+}
+
+/**
+ * @brief Checks if a move is valid (within bounds and not already occupied).
+ * 
+ * This function checks if the selected row and column are within the game board's boundaries
+ * and if the spot is not already occupied by a symbol.
+ * 
+ * @param row The row of the move.
+ * @param col The column of the move.
+ * @return true if the move is valid, false otherwise.
+ */
+bool isValidMove(int row, int col) {
+  return (row >= 0 && row < 3 && col >= 0 && col < 3 && board[row][col] == ' ');
+}
+
+/**
+ * @brief Processes a player's move from the input string.
+ * 
+ * This function parses the input string, checks if the move is valid, and updates the game state.
+ * It handles both player and AI moves, switching players as needed.
+ * 
+ * @param input The input string representing the move in the form "row col" (e.g., "1 1").
  */
 void processMove(String input) {
   int row = input[0] - '1';
   int col = input[2] - '1';
 
-  if (row >= 0 && row < 3 && col >= 0 && col < 3 && board[row][col] == ' ') {
-    if (gameMode == 1) { 
-      board[row][col] = (currentPlayer == "X") ? 'X' : 'O';
-    } else { 
-      board[row][col] = 'X'; 
-    }
-    printBoard();
+  if (isValidMove(row, col)) {
+    handlePlayerMove(row, col);
+    
+    if (!gameActive) return;
 
-    if (checkWin('X')) {
-      Serial.println("Player X wins!");
-      gameActive = false;
-      return;
-    }
+    handleAIMove();
 
-    if (checkWin('O')) {
-      Serial.println("Player O wins!");
-      gameActive = false;
-      return;
+    if (gameActive) {
+      switchPlayer();
     }
-
-    if (isBoardFull()) {
-      Serial.println("It's a draw!");
-      gameActive = false;
-      return;
-    }
-
-    if (gameMode == 2) {
-      aiMove(player1Symbol[0]);
-      if (checkWin(player1Symbol[0])) {
-        Serial.println("Player 1 (AI) wins!");
-        gameActive = false;
-        return;
-      }
-      aiMove(player2Symbol[0]);
-      if (checkWin(player2Symbol[0])) {
-        Serial.println("Player 2 (AI) wins!");
-        gameActive = false;
-        return;
-      }
-    }
-
-    currentPlayer = (currentPlayer == "X") ? 'O' : 'X';
   } else {
     Serial.println("Invalid move, try again.");
   }
 }
+
 
 /**
  * @brief Initializes the serial communication.
@@ -326,137 +437,188 @@ void setup() {
 }
 
 /**
- * @brief Main game loop that handles user input and game flow.
+ * @brief Initializes the game and sets up initial conditions.
  * 
- * This function continuously runs the game logic and handles player moves, game state, 
- * and communication via the serial interface. It listens for specific commands to 
- * start a new game, save or load the game configuration, change the game mode, 
- * and process player or AI moves.
+ * This function initializes the game board, sets the game as active, and assigns symbols
+ * to the players depending on the game mode. For human vs. AI mode, player 1 is asked to choose 
+ * their symbol, while in AI vs. AI mode, the game runs automatically.
+ */
+void initializeGame() {
+  initializeBoard();
+  gameActive = true;
+
+  if (gameMode == 1) {
+    Serial.println("Player 1, choose your symbol: X or O");
+    currentPlayer = (random(2) == 0) ? 'X' : 'O';
+    player1Symbol = currentPlayer;
+    player2Symbol = (currentPlayer == "X") ? 'O' : 'X';
+    Serial.println("Player 1 is " + String(player1Symbol));
+    Serial.println("Player 2 is " + String(player2Symbol));
+  } else {
+    currentPlayer = 'X';
+  }
+
+  Serial.println("New game started! " + String(currentPlayer) + " goes first.");
+  printBoard();
+}
+
+/**
+ * @brief Checks if the player has won and prints the result.
  * 
- * - If a new game is started (via the "new" command), the board is initialized, 
- *   and the players are asked to choose their symbols. The game proceeds in one of 
- *   the three game modes: Player vs Player, Player vs AI, or AI vs AI.
- * - If the "save" command is received, the current game configuration is saved.
- * - If the "modes" command is received, the game mode is set to the specified value.
- * - If no game is active, the user is prompted to type 'new' to start a new game.
+ * This function checks if a given player symbol has won the game. If the player has won, 
+ * it prints the winner's symbol and ends the game.
  * 
- * @note The loop runs continuously, processing user input and updating the game state.
+ * @param symbol The symbol of the player to check for a win ('X' or 'O').
+ * @return true if the player has won, false otherwise.
+ */
+bool checkAndPrintWinner(char symbol) {
+  if (checkWin(symbol)) {
+    Serial.println(String(symbol) + " wins!");
+    gameActive = false;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @brief Checks if the game is a draw and prints the result.
+ * 
+ * This function checks if the game is a draw by verifying if the board is full. 
+ * If the game is a draw, it prints a draw message and ends the game.
+ * 
+ * @return true if the game is a draw, false otherwise.
+ */
+bool checkAndPrintDraw() {
+  if (isBoardFull()) {
+    Serial.println("It's a draw!");
+    gameActive = false;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @brief Handles the Human vs AI game mode.
+ * 
+ * This function manages the flow of a human player versus AI game. It prompts the player
+ * for their move and processes it. If the AI's move or the player's move results in a win or a draw,
+ * the game ends.
+ */
+void processHumanVsAI() {
+  while (gameActive) {
+    if (currentPlayer == "X") {
+      Serial.println("Your move, player (enter row and column):");
+      while (Serial.available() == 0) {}
+      String userMove = Serial.readStringUntil('\n');
+      processMove(userMove);
+      printBoard();
+
+      if (checkAndPrintWinner('X') || checkAndPrintDraw()) {
+        break;
+      }
+
+      currentPlayer = 'O';
+    } else {
+      aiMove('O');
+      printBoard();
+      if (checkAndPrintWinner('O') || checkAndPrintDraw()) {
+        break;
+      }
+
+      currentPlayer = 'X';
+    }
+  }
+}
+
+/**
+ * @brief Handles the AI vs AI game mode.
+ * 
+ * This function runs an AI vs. AI game, where each AI takes turns making moves automatically.
+ * The game ends when one of the AIs wins or the game results in a draw.
+ */
+void processAIvsAI() {
+  while (gameActive) {
+    aiMove('X');
+    printBoard();
+    if (checkAndPrintWinner('X') || checkAndPrintDraw()) {
+      break;
+    }
+
+    aiMove('O');
+    printBoard();
+    if (checkAndPrintWinner('O') || checkAndPrintDraw()) {
+      break;
+    }
+  }
+}
+
+/**
+ * @brief Processes the received message from the serial input.
+ * 
+ * This function processes various types of messages received from the user through
+ * the serial input. It handles game mode selection, starting new games, saving game configuration,
+ * and processing moves.
+ * 
+ * @param receivedMessage The message received from the serial input.
+ */
+void processReceivedMessage(String receivedMessage) {
+  if (receivedMessage == "new") {
+    initializeGame();
+    
+    if (gameMode == 0) {
+      processHumanVsAI();
+    } else if (gameMode == 2) {
+      processAIvsAI();
+    }
+  } else if (receivedMessage.startsWith("save")) {
+    GameConfig config = { gameMode, player1Symbol, player2Symbol, currentPlayer };
+    saveConfig(config);
+  } else if (receivedMessage.startsWith("{")) {
+    if (receivedMessage.length() > 0) {
+        loadConfig(receivedMessage);
+    } else {
+        Serial.println("No message received");
+    }
+  } else if (receivedMessage.startsWith("modes")) {
+    handleGameMode(receivedMessage);
+  } else if (gameActive) {
+    processMove(receivedMessage);
+  } else {
+    Serial.println("No active game. Type 'new' to start.");
+  }
+}
+
+/**
+ * @brief Handles the game mode selection based on the received message.
+ * 
+ * This function sets the game mode based on the received message. The game mode determines
+ * if the game is Human vs AI, Man vs Man, or AI vs AI.
+ * 
+ * @param receivedMessage The message containing the game mode selection.
+ */
+void handleGameMode(String receivedMessage) {
+  if (receivedMessage == "modes 0") {
+    gameMode = 0;
+    Serial.println("Game mode: Man vs AI");
+  } else if (receivedMessage == "modes 1") {
+    gameMode = 1;
+    Serial.println("Game mode: Man vs Man");
+  } else if (receivedMessage == "modes 2") {
+    gameMode = 2;
+    Serial.println("Game mode: AI vs AI");
+  }
+}
+
+/**
+ * @brief Main loop that continuously checks for user input and processes it.
+ * 
+ * This function runs continuously in the loop. It listens for incoming serial messages and 
+ * processes them accordingly, allowing for interaction with the game.
  */
 void loop() {
   if (Serial.available() > 0) {
-    String receivedMessage = Serial.readStringUntil('\n');  ///< Read the incoming serial message
-    receivedMessage.trim();  ///< Remove any trailing whitespace or newline characters
-
-    if (receivedMessage == "new") {
-      initializeBoard();  ///< Initialize a new game board
-      gameActive = true;  ///< Set the game state to active
-
-      if (gameMode == 1) {
-        Serial.println("Player 1, choose your symbol: X or O");
-        currentPlayer = (random(2) == 0) ? 'X' : 'O';  ///< Randomly choose Player 1's symbol
-        player1Symbol = currentPlayer;
-        player2Symbol = (currentPlayer == "X") ? 'O' : 'X';
-        Serial.println("Player 1 is " + String(player1Symbol));
-        Serial.println("Player 2 is " + String(player2Symbol));
-      } else {
-        currentPlayer = 'X';  ///< Set Player 1 to be 'X' in AI modes
-      }
-
-      Serial.println("New game started! " + String(currentPlayer) + " goes first.");
-      printBoard();  ///< Print the initial game board
-
-      if (gameMode == 0) {  ///< Man vs AI mode
-        while (gameActive) {
-          if (currentPlayer == "X") {
-            Serial.println("Your move, player (enter row and column):");
-            while (Serial.available() == 0) { }
-            String userMove = Serial.readStringUntil('\n');  ///< Read the user's move
-            processMove(userMove);  ///< Process the user's move
-            printBoard();  ///< Print the updated board
-
-            if (checkWin('X')) {
-              Serial.println("Player X wins!");
-              gameActive = false;
-              break;
-            }
-            if (isBoardFull()) {
-              Serial.println("It's a draw!");
-              gameActive = false;
-              break;
-            }
-
-            currentPlayer = 'O';  ///< Switch to Player 2 (AI)
-          } else {
-            aiMove('O');  ///< AI makes its move
-            printBoard();  ///< Print the updated board
-            if (checkWin('O')) {
-              Serial.println("AI O wins!");
-              gameActive = false;
-              break;
-            }
-            if (isBoardFull()) {
-              Serial.println("It's a draw!");
-              gameActive = false;
-              break;
-            }
-
-            currentPlayer = 'X';  ///< Switch to Player 1
-          }
-        }
-      }
-      else if (gameMode == 2) {  ///< AI vs AI mode
-        while (gameActive) {
-          aiMove('X');  ///< AI X makes its move
-          printBoard();  ///< Print the updated board
-          if (checkWin('X')) {
-            Serial.println("AI X wins!");
-            gameActive = false;
-            break;
-          }
-          if (isBoardFull()) {
-            Serial.println("It's a draw!");
-            gameActive = false;
-            break;
-          }
-
-          aiMove('O');  ///< AI O makes its move
-          printBoard();  ///< Print the updated board
-          if (checkWin('O')) {
-            Serial.println("AI O wins!");
-            gameActive = false;
-            break;
-          }
-          if (isBoardFull()) {
-            Serial.println("It's a draw!");
-            gameActive = false;
-            break;
-          }
-        }
-      }
-    } else if (receivedMessage.startsWith("save")) {
-      GameConfig config = { gameMode, player1Symbol, player2Symbol, currentPlayer };
-      saveConfig(config);  ///< Save the current game configuration
-    } else if (receivedMessage.startsWith("{")) {
-      if (receivedMessage.length() > 0) {
-          loadConfig(receivedMessage);  ///< Load the game configuration
-      } else {
-          Serial.println("No message received");
-      }
-    } else if (receivedMessage.startsWith("modes")) {
-      if (receivedMessage == "modes 0") {
-        gameMode = 0;
-        Serial.println("Game mode: Man vs AI");
-      } else if (receivedMessage == "modes 1") {
-        gameMode = 1;
-        Serial.println("Game mode: Man vs Man");
-      } else if (receivedMessage == "modes 2") {
-        gameMode = 2;
-        Serial.println("Game mode: AI vs AI");
-      }
-    } else if (gameActive) {
-      processMove(receivedMessage);  ///< Process the move if the game is active
-    } else {
-      Serial.println("No active game. Type 'new' to start.");
-    }
+    String receivedMessage = Serial.readStringUntil('\n');
+    receivedMessage.trim();
+    processReceivedMessage(receivedMessage);
   }
 }
