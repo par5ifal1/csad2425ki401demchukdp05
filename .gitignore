@@ -1,3 +1,10 @@
 .pio/
 .pytest_cache/
+<<<<<<< HEAD
 ci-script_linux.sh
+=======
+<<<<<<< HEAD
+ci-script_linux.sh
+=======
+>>>>>>> feature/develop/task3
+>>>>>>> feature/develop/task4

@@ -4,7 +4,11 @@
 This repository is intended for completing assignments for the course “Computer systems automated design”.
 
 # Task details:
+<<<<<<< HEAD
 Implement automated tests
+=======
+Create doxygen documentation
+>>>>>>> feature/develop/task4
 
 # How to build and run project:
 Before building and running the project, make sure you have the following installed:
