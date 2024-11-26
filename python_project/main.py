@@ -9,6 +9,9 @@ CONFIG_FILE = 'config/game_config.json'
 
 def setup_serial_port():
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> feature/develop/task4
     """!
     @brief Sets up the serial port for communication.
     @details Prompts the user to enter the serial port (e.g., /dev/ttyUSB0 or COM3) and
@@ -16,8 +19,11 @@ def setup_serial_port():
     @return Serial connection object.
     @throws serial.SerialException if the serial port cannot be opened.
     """
+<<<<<<< HEAD
+=======
 =======
 >>>>>>> feature/develop/task3
+>>>>>>> feature/develop/task4
     try:
         port = input("Enter the serial port (e.g., /dev/ttyUSB0 or COM3): ")
         return serial.Serial(port, 9600, timeout=1)
@@ -28,6 +34,9 @@ def setup_serial_port():
 
 def send_message(message, ser):
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> feature/develop/task4
     """!
     @brief Sends a message over the serial connection.
     @details Encodes the message and sends it via the given serial connection.
@@ -35,8 +44,11 @@ def send_message(message, ser):
     @param ser The serial connection object.
     @throws serial.SerialException if sending the message fails.
     """
+<<<<<<< HEAD
+=======
 =======
 >>>>>>> feature/develop/task3
+>>>>>>> feature/develop/task4
     try:
         ser.write((message + '\n').encode())
     except serial.SerialException as e:
@@ -45,6 +57,9 @@ def send_message(message, ser):
 
 def receive_message(ser):
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> feature/develop/task4
     """!
     @brief Receives a message from the serial connection.
     @details Reads a line from the serial connection, decodes it, and strips it of any
@@ -53,8 +68,11 @@ def receive_message(ser):
     @return The received message or None if an error occurs.
     @throws serial.SerialException if receiving the message fails.
     """
+<<<<<<< HEAD
+=======
 =======
 >>>>>>> feature/develop/task3
+>>>>>>> feature/develop/task4
     try:
         received = ser.readline().decode('utf-8', errors='ignore').strip()
         if received:
@@ -67,6 +85,9 @@ def receive_message(ser):
 
 def receive_multiple_messages(ser, count):
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> feature/develop/task4
     """!
     @brief Receives multiple messages from the serial connection.
     @details Calls the receive_message function multiple times to collect a list of received messages.
@@ -74,8 +95,11 @@ def receive_multiple_messages(ser, count):
     @param count The number of messages to receive.
     @return A list of received messages.
     """
+<<<<<<< HEAD
+=======
 =======
 >>>>>>> feature/develop/task3
+>>>>>>> feature/develop/task4
     messages = []
     for _ in range(count):
         message = receive_message(ser)
@@ -86,14 +110,20 @@ def receive_multiple_messages(ser, count):
 
 def user_input_thread(ser):
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> feature/develop/task4
     """!
     @brief Handles user input in a separate thread.
     @details Continuously listens for user input. Depending on the input, the user can send messages
              or save/load game configurations. The thread will exit if the user types 'exit'.
     @param ser The serial connection object.
     """
+<<<<<<< HEAD
+=======
 =======
 >>>>>>> feature/develop/task3
+>>>>>>> feature/develop/task4
     global can_input
     while True:
         if can_input:
